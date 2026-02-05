@@ -1,0 +1,25 @@
+controller:
+  serviceType: ClusterIP
+  admin:
+    createSecret: true
+
+  installPlugins:
+    - kubernetes:4296.v20a_7a_6b_4f_2c9
+    - workflow-aggregator:600.vb_57cdd26fdd7
+    - git:5.2.2
+    - github:1.40.0
+    - credentials-binding:681.vf91669a_32e45
+    - pipeline-stage-view:2.36
+
+  JCasC:
+    defaultConfig: true
+
+serviceAccount:
+  create: true
+  name: jenkins
+
+agent:
+  enabled: true
+  image:
+    repository: jenkins/inbound-agent
+    tag: latest

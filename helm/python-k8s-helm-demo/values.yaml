@@ -1,0 +1,41 @@
+replicaCount: 2
+
+image:
+  repository: YOUR_REGISTRY/python-k8s-demo
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: demo.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+env:
+  APP_ENV: prod
+  APP_VERSION: "1.0.0"
+
+secret:
+  API_KEY: replace-me
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 60

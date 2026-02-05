@@ -1,0 +1,80 @@
+pipeline {
+  agent any
+
+  environment {
+    PROJECT_ID   = "YOUR_GCP_PROJECT"
+    REGION       = "europe-west2"
+    REPO_NAME    = "demo-images"
+    IMAGE_NAME   = "python-k8s-demo"
+    AR_REPO      = "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
+    FULL_IMAGE   = "${AR_REPO}/${IMAGE_NAME}"
+
+    HELM_VALUES  = "helm/python-k8s-demo/values.yaml"
+    GIT_BRANCH   = "main"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Compute Tag') {
+      steps {
+        script {
+          env.IMAGE_TAG = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+        }
+      }
+    }
+
+    stage('Build Image') {
+      steps {
+        sh """
+          docker build -t ${FULL_IMAGE}:${IMAGE_TAG} app
+        """
+      }
+    }
+
+    stage('Auth to GCP + Push') {
+      steps {
+        sh """
+          # Option A (recommended): Jenkins runs in GKE with Workload Identity
+          # so it can do 'gcloud auth' without JSON keys (configure WI separately).
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev -q
+          docker push ${FULL_IMAGE}:${IMAGE_TAG}
+        """
+      }
+    }
+
+    stage('Update Helm values.yaml') {
+      steps {
+        sh """
+          python - <<'PY'
+          import yaml
+          p='${HELM_VALUES}'
+          with open(p) as f:
+            data=yaml.safe_load(f)
+          data.setdefault('image', {})
+          data['image']['repository'] = '${FULL_IMAGE}'
+          data['image']['tag'] = '${IMAGE_TAG}'
+          with open(p,'w') as f:
+            yaml.safe_dump(data, f, sort_keys=False)
+          PY
+        """
+      }
+    }
+
+    stage('Commit & Push (GitOps)') {
+      steps {
+        sh """
+          git config user.email "jenkins@local"
+          git config user.name "jenkins"
+          git add ${HELM_VALUES}
+          git commit -m "Release: ${IMAGE_NAME}:${IMAGE_TAG}" || true
+          git push origin ${GIT_BRANCH}
+        """
+      }
+    }
+  }
+}
